@@ -1,0 +1,326 @@
+UI/UX Design Handoff — ChemSafe v1.0
+DESIGN
+BRIEF
+5 Pages
+2 Entry Paths
+1 Shared Results View
+Mobile-first interview
+Dark + Light modes
+Brutalist editorial aesthetic
+00 — What you are designing
+Product Overview
+ChemSafe is a water infrastructure risk tool. It tells agricultural operators, fish pond managers, and field extension officers when their PVC pipe setup is likely to start contaminating their water supply — before it happens.
+
+The key design challenge is inclusivity across a wide user spectrum: from a technically literate municipal planner on a laptop to a fish farmer on a smartphone who has never heard the word "UPVC". Both users must be able to complete an assessment and get a result. The solution is two entry paths that converge at the same output.
+
+Tone
+Scientific instrument. Not a consumer app. Authoritative, sparse, honest.
+Aesthetic
+Brutalist editorial — heavy type, ruled lines, generous whitespace. Refs: Helious, Creacy, Build Beyond the Horizon.
+Primary device
+Desktop for expert form. Mobile-first for the guided interview — user is standing next to a pipe.
+Colour modes
+Both light and dark. Dark is the hero mode. Light is the results/print mode.
+Global scope
+No Nigeria-specific references in UI. Warm-climate agricultural contexts worldwide.
+01 — Full flow map
+Every Path, Every State
+Two entry journeys. One shared output. The designer should treat this as the primary navigation architecture.
+
+/ Landing
+User arrives
+chooses entry path
+Path A
+Guided Interview
+/interview
+Path B
+Expert Form
+/assess
+↓ AI interviews user
+up to 18 turns
+↓ 3-step form
+90 seconds
+Parameter extraction
++ confidence scoring
+Form validation
++ submission
+both POST to same API endpoint
+/results/[id]
+Risk score + timeline
+↓ user shares or prints
+Share URL
+copy link
+Print PDF
+A4 card
+New assess.
+start over
+02 — Page specifications
+Page 1 — Landing /
+Purpose
+Orient the user. Set the problem. Let them self-select their entry path. No scrolling required to reach the two CTAs.
+Hero image
+Full-bleed atmospheric illustration or photograph — degraded pipe infrastructure in an agricultural/rural landscape. Dark, cinematic. Not a stock photo of water.
+Headline
+Large condensed type, 4 words maximum. Sits over the hero image. Example: "WATER TURNS TOXIC SILENTLY."
+Above fold
+Nav + hero image + headline + two CTAs. Nothing else. No paragraph text above the fold.
+Two CTAs
+"Guide me through it" (primary, goes to /interview) and "I know my specs" (secondary, goes to /assess). Must feel like two equal doors, not a primary + ghost button hierarchy.
+Below fold
+Three-column "How it works" strip (Describe → Model → Get result). Then the honest scope disclaimer strip in accent colour. Then footer.
+Nav
+Logo left. Links centre (How it works / Methodology / Scope). No CTA in nav — the page body handles that.
+Mobile
+Hero image collapses to 60vh. Headline stays large. Two CTAs stack vertically, full width.
+Page 2 — Guided Interview AI /interview
+This is the most important page to get right. The user is likely on mobile, possibly standing outside near their infrastructure. Every design decision should reduce friction and build trust.
+
+Layout
+Split panel on desktop: left = contextual image (pipe/agricultural landscape), right = dark panel with conversation. On mobile: full screen dark panel only.
+First message
+Always the same onboarding message — not a question. Sets expectations, reassures user that not knowing is fine. Then first question appears after 1.5s.
+Message UI
+Chat bubbles. Agent messages left-aligned, dark background, light text. User replies right-aligned, accent colour background. Monospace font throughout.
+Input
+Text input at bottom, always visible. Plus: quick-reply chips for common answers. "I don't know" chip always present. Camera/upload button always visible in input bar.
+Progress
+Thin progress bar at top showing parameters collected (0 of 10). Updates in real time as agent confirms each value. User can see they are making progress.
+Side panel
+On desktop: live parameter panel showing what has been collected so far. Each param shows as "confirmed" or "estimated". On mobile: collapsible drawer.
+Image upload
+When triggered (by agent or user): full-screen camera overlay with frame guide and caption "Point at the pipe joint". Confirmation step before submitting image.
+Loading state
+Typing indicator (three animated dots) while agent is processing. Never a blank screen. If >3s delay: "Taking a moment..." shown.
+Completion
+When all 10 params collected: agent sends closing message, button appears: "See your risk assessment →". No automatic redirect.
+Error state
+If connection drops: banner at top "Connection lost — your progress is saved." Button: "Continue on the form →". Must not feel like a crash.
+Conversation flow — what the designer needs to show in each state
+Interview sequence
+18 turn max
+Agent
+Onboarding message — not a question. "I'm going to ask you about 8 short questions about your water setup. You don't need to know technical details. If you're unsure about anything, just say so. Ready?"
+Quick replies: "Let's go" / "Tell me more first"
+Agent
+Q1 — Pipe material. Adapts register from first reply.
+Technical: "What is your pipe material — UPVC, CPVC, HDPE, or unknown?"
+Plain: "What is the pipe made of — hard white plastic, flexible black plastic, or something else?"
+If "I don't know" → sensory fallback: "Press your fingernail into the pipe. Does it leave a dent, or is it too hard?" OR "Take a photo of the pipe joint →"
+Agent
+Q2 — Installation age.
+Plain: "Roughly how long have these pipes been in place?"
+If "I don't know" → "Was it installed before or after your last harvest season?" or "Does the pipe crack easily when you tap it?"
+Agent
+Q3 — Sun exposure.
+"Is the pipe mostly in direct sunlight, partially shaded, or underground?"
+Quick replies: "Full sun" / "Some shade" / "Underground" / "Mixed"
+Agent
+Q4 — Temperature context.
+"How hot does it get where the pipe is during the dry season?"
+Quick replies: "Very hot (35°C+)" / "Warm (25–35°C)" / "Mild" / "Not sure"
+Agent
+Q5 — Flow rate.
+"Does water run through this pipe every day, only when you irrigate, or does it sit still most of the time?"
+Quick replies: "Every day" / "Only sometimes" / "Mostly still"
+Agent
+Q6 — Gum / joint type.
+"What was used to join the pipes — glue/cement, rubber rings, or something else?"
+If "I don't know" → "Upload a photo of the joint area" OR conservative default applied silently
+Agent
+Q7 — Use context.
+"What is this water used for — drinking, crop irrigation, a fish pond, or livestock?"
+This determines which WHO threshold table is applied. Critical question — no skip.
+Agent
+Q8 — Confirmation + close.
+"Thanks — I have enough to calculate your risk. Based on what you've told me, [brief plain-language summary of setup]. Does that sound right?"
+If yes → show "See your result →" button. If no → agent asks which part to correct.
+Page 3 — Expert Form /assess
+For technically literate users. Fast and precise. Three steps, one concept per step. Target completion: 90 seconds.
+
+1
+Material Specs
+What the infrastructure is made of. All fields use select dropdowns except installation age which uses a number slider.
+Pipe material
+Gum / joint type
+Installation age (yrs)
+Pipe diameter (optional)
+Every field has an "Unknown" option → applies conservative default silently.
+2
+Environmental Data
+Exposure conditions. Sliders for temperature and UV hours. Toggle for buried vs exposed.
+Avg temp (°C)
+Daily UV hours
+Flow rate
+Buried or exposed
+Tooltip on each field with plain-language explanation. Not everyone knows what UV hours means.
+3
+Use Context
+What the water is for. Determines which WHO threshold table is applied to the score.
+Use context
+Population served (optional)
+Use context is the most important field — it changes the threshold entirely. Make it visually prominent.
+Progress
+Step indicator at top — three dots or numbered pills. Current step highlighted. Completed steps checkmarked.
+Navigation
+"Back" and "Next" on each step. No skip. "Calculate Risk" only appears on step 3.
+Pre-fill
+If user was redirected from a failed interview session, sessionStorage pre-fills whatever was already collected. Show a banner: "Your earlier answers were saved."
+Validation
+Inline, not on submit. Show error state per field as soon as focus leaves. No page-level error summary.
+Page 4 — Results /results/[id]
+The payoff. This page must work as a standalone document — someone should be able to share the URL with a colleague who has no context and they should immediately understand what they are looking at.
+
+Hero element
+The risk score number — large condensed type, 100–160px, full width. Colour shifts: green (0–30), amber (31–60), red (61–100). Score animates up from 0 on load.
+Score band
+Below the number: band label in smaller type. "HIGH RISK" or "MODERATE RISK" etc. Then one sentence plain-language interpretation.
+Confidence caveat
+If result came from interview with low confidence: show as range "approximately 68–82" with a note "some values were estimated — see below". Only show for interview results, never for form results.
+Timeline chart
+Line chart: months until WHO threshold breach. X = months, Y = leachate accumulation. Current level marked. Threshold line marked. Clean, no chart junk.
+Action card
+Below chart: specific recommended action based on score band. Not generic. "Replace gum joints before next irrigation season" not "Take immediate action."
+Parameter table
+Collapsible section: all 10 input parameters. Each row shows the value and a badge — "Confirmed" (blue) or "Estimated" (amber). Helps user understand what was inferred.
+Share row
+Three actions: Copy link / Download PDF / Start new assessment. Sticky at bottom on mobile.
+Print mode
+@print styles: score + band + action + parameter table + timestamp + methodology version + "Generated by ChemSafe — chemsafe.app". Fits A4. No nav, no chart.
+Limitations note
+Always visible, never hidden: one-line disclaimer "This is a predictive model, not a diagnostic test. It does not replace physical water testing."
+Page 5 — Methodology /about
+Trust-building page. The audience is a skeptical professional — a planner or NGO evaluator — who wants to understand if the model is credible before using it in the field.
+
+Sections
+1. How the score is calculated (formulas, plain-language explained). 2. Data sources (WHO, material literature). 3. Agent inference methodology. 4. Known limitations. 5. Glossary.
+Tone
+Editorial, not marketing. No CTAs on this page. Dense but well-structured.
+Limitations section
+Must be a first-class section, not a footnote. Label it "What this tool cannot do" — not "Limitations" which reads defensive.
+Language note
+Include a small section: "ChemSafe is built for global deployment. Multi-language support is on the roadmap — the architecture is localisation-ready from day one." List planned languages.
+03 — Component inventory
+UI Components to Design
+Every component the engineer will need. Design each one in light and dark mode.
+
+Risk Score Display
+RiskScoreDashboard.tsx
+Large animated number. Colour by band. With and without confidence range variant.
+Timeline Chart
+RiskTimelineChart.tsx
+Line chart, months to threshold. Minimal axes. Two lines: current trajectory + threshold.
+Message Bubble
+MessageBubble.tsx
+Agent bubble (left) and user bubble (right). Typing indicator state. Image attachment variant.
+Quick Reply Chips
+ConversationalAgent.tsx
+Horizontal scroll row of answer chips. "I don't know" chip always present. Selected state.
+Image Upload Flow
+ImageUploadFlow.tsx
+Full-screen camera overlay. Frame guide. Preview + confirm step. Processing state.
+Confidence Badge
+ConfidenceBadge.tsx
+Small inline badge: "Confirmed" (blue) / "Estimated" (amber). Used in parameter table.
+Parameter Table
+RiskScoreDashboard.tsx
+Collapsible. 10 rows. Each: parameter name / value / confidence badge. Print-safe.
+Action Card
+RiskScoreDashboard.tsx
+Coloured card by band. Icon + headline action + 2-line explanation. Four band variants.
+Step Form
+InfrastructureForm.tsx
+3-step container with progress indicator. Step transition animation. Back/Next controls.
+Progress Bar
+ConversationalAgent.tsx
+Thin top-of-screen bar. 0–10 params collected. Increments as agent confirms each value.
+Error Banner
+agent-turn.ts
+Top-of-screen persistent banner. Three states: rate limit / network failure / vision failure.
+Limitations Panel
+LimitationsPanel.tsx
+Always visible on results page. One-line disclaimer. Never collapsible, never hidden.
+04 — States to design
+Every Screen State
+For each page, the designer must provide all states, not just the happy path.
+
+Interview page states
+Onboarding
+First message shown. No user input yet.
+In Progress
+Conversation active. Progress updating.
+Loading
+Agent processing. Typing indicator.
+Image Upload
+Camera overlay active.
+Error
+Network failure banner shown.
+Complete
+All params collected. CTA shown.
+Results page states
+Low Risk
+Score 0–30. Green palette. Monitor annually.
+Moderate
+Score 31–60. Amber palette. Inspect soon.
+High Risk
+Score 61–80. Red palette. Replace in 3mo.
+Critical
+Score 81+. Deep red. Act immediately.
+Range result
+Low confidence. Shows "approx. X–Y" not a point.
+05 — Design tokens
+Colour & Type
+Colours — Dark mode (hero)
+Background
+#0f0f0e
+Paper / text
+#f5f2ec
+Accent / risk
+#c8401a
+Data / info
+#1a4fc8
+Sand / muted
+#c4b99a
+Colours — Light mode (results)
+Background
+#f5f2ec
+Ink / text
+#0f0f0e
+Low risk
+#2ecc71
+Moderate
+#f1c40f
+High / critical
+#e74c3c
+Typography
+Barlow Condensed 900
+Headlines, score numbers, page titles
+Space Mono 400/700
+Body copy, labels, data, UI text, conversation
+Instrument Serif Italic
+Accent word in headlines only. Used sparingly.
+Border system
+All borders 1px solid, no shadows, no rounded corners except pill chips. Structure is communicated through rules, not cards.
+Spacing
+Base unit 8px. Section padding 32px desktop / 20px mobile. Generous whitespace — never fill every pixel.
+Motion
+Score number counts up from 0 on load (600ms). Staggered fade-up for content sections on scroll. Typing indicator for agent. No other animations.
+Print
+Light mode only for print. No dark backgrounds in @print. Score + band + action + param table + timestamp. Fits A4 portrait.
+06 — Deliverables
+What the Designer Should Deliver
+Desktop frames
+Landing, Interview (all 6 states), Expert Form (all 3 steps), Results (all 5 score states), About. Light + dark per page.
+Mobile frames
+Interview page (priority — this is a mobile-first interaction). Landing. Results. All others desktop-only is acceptable.
+Component library
+All 12 components listed above. Each in resting, hover, active, and disabled states. Dark + light.
+Print layout
+A4 portrait results card. All four score band variants.
+Flow prototype
+Clickable prototype covering: Landing → Interview happy path → Results. Landing → Expert Form → Results. Optional but strongly preferred.
+Not required
+Custom illustrations or photography. The developer will source or generate these. Focus on layout, typography, and component design.
+ChemSafe Water Monitor
+UI/UX Design Brief v1.0
+5 pages · 12 components · 2 paths
+For internal handoff only

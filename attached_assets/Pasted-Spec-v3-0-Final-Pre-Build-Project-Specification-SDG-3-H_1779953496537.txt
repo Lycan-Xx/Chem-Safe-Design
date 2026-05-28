@@ -1,0 +1,293 @@
+Spec v3.0 — Final Pre-Build
+Project Specification · SDG 3 Hackathon · Global Deployment Architecture
+CHEMSAFE
+WATER
+MONITOR
+Stack: Astro + TypeScript
+AI: Claude API (Sonnet)
+Scope: Global
+SDG Target: 3.9
+↑ V3: Devpost · Docstrings · Error handling · Global positioning
+00 — V3 Changes
+What This Version Adds
+Devpost copy
+Full three-paragraph submission description, written and ready to paste
+Docstring content
+Exact content for every file in the agent/ folder — what each docstring must say to generate a strong PresentMeApp README
+Error handling
+Three-path fallback matrix for API failures mid-interview — rate limits, network failure, vision failure
+Global scope
+Nigeria-specific references removed. Tool repositioned as global infrastructure with progressive localisation roadmap
+Language strategy
+Inclusive multi-language roadmap replacing single-language promise — architecture is localisation-ready from day one
+01 — Global Scope
+Who This Is For
+Degrading PVC infrastructure under UV and heat is not a Nigerian problem. It is a warm-climate, agricultural-context, limited-testing-access problem. That describes West Africa, Southeast Asia, South Asia, Latin America, and the Pacific. ChemSafe is built for all of them. The chemistry does not change by country. Only the regulatory thresholds and the language do.
+
+West Africa
+Fish ponds, irrigation schemes, community water. High UV, seasonal heat spikes.
+Threshold: WHO defaults → NAFDAC Phase 2
+South Asia
+Smallholder irrigation, aquaculture in Bangladesh, India, Vietnam river deltas.
+Threshold: WHO defaults → BIS/BSTI Phase 2
+SE Asia
+Prawn and shrimp pond infrastructure. Tropical UV intensity year-round.
+Threshold: WHO defaults → regional Phase 2
+Latin America
+Community mini-irrigation systems, coffee and cocoa farm water supply.
+Threshold: WHO defaults → ANVISA Phase 2
+All Phase 1 thresholds use WHO SDG 3.9 water safety limits as the baseline — the universal standard. Regional regulatory calibration is a Phase 2 item, designed into the architecture from the start as a configuration layer, not a rewrite.
+
+02 — Language & Localisation
+Progressive Localisation
+The interview agent's register-detection system is language-agnostic by design — it detects literacy level from response complexity, not vocabulary. Adding a new language is a configuration and translation task, not an architectural one. This is the commitment made in the codebase from day one.
+
+English
+Live — Phase 1
+French
+Phase 2
+Hindi
+Phase 2
+Portuguese
+Phase 2
+Hausa
+Phase 2
+Swahili
+Phase 2
+Vietnamese
+Phase 3
+Bengali
+Phase 3
+Spanish
+Phase 3
+Architecture note
+All UI strings extracted to /i18n/[locale].json from day one. Agent system prompts templated for language injection. No hardcoded English strings in logic layer.
+Devpost framing
+"ChemSafe is built for global deployment. Language packs and regional regulatory thresholds are on the public roadmap — the architecture is localisation-ready from day one."
+What not to say
+Do not promise specific languages by name in the Devpost description. The roadmap list lives in the spec and the About page, not the submission.
+03 — Submission Copy
+Devpost Description
+Copy this verbatim. Three paragraphs, no bullet lists. The judges read dozens of submissions — this is calibrated to be read in 45 seconds and remembered.
+
+Devpost description — paste ready
+Paragraph 1 — The problem
+Every year, farmers, fish pond operators, and communities lose crops, livestock, and health to water contamination they never saw coming. The culprit is often the infrastructure itself — PVC pipes and polymer joints degrading silently under heat and UV radiation, leaching phthalates, microplastics, and volatile organic compounds into the water supply over months and years. No alarm goes off. By the time fish die or crops fail, the chemical load has been building for a season or more.
+Paragraph 2 — The tool and the key design decision
+ChemSafe calculates a Leachate Risk Score from infrastructure parameters — pipe material, installation age, UV exposure, ambient temperature, flow rate, and use context — using polymer degradation chemistry models grounded in WHO SDG 3.9 water safety thresholds. The tool is built for global agricultural contexts: warm climates, limited water-testing access, and ageing pipe infrastructure. Critically, ChemSafe offers two entry paths: a technical form for extension officers and planners who know their specifications, and an AI-guided interview for anyone who doesn't — adapting its vocabulary to the user's literacy level, accepting proxy and observational answers when direct answers aren't available, and using image recognition to identify pipe materials from photos. Both paths feed the same chemistry model and produce the same risk output.
+Paragraph 3 — Honest scope (reads as strength, not disclaimer)
+ChemSafe is a Tier 2 tool — designed for the technical intermediary layer between scientific data and the communities it serves. It is predictive, not diagnostic: it projects when contamination is likely to begin, not whether it has already occurred. It does not replace physical water testing. What it gives planners, supervisors, and field officers is a decision-making window they currently lack — and a shareable, printable record of every assessment they run.
+04 — PresentMeApp Optimisation
+Docstring Content Plan
+These are the exact docstrings to write in each agent/ file. PresentMeApp will scrape these and generate your README sections from them. The more specific and example-rich the docstring, the stronger the generated output. This directly determines 40 of your 100 judging marks.
+
+intake-agent.ts
+Module-level JSDoc
+/**
+* Intake Agent — Conversational parameter collection for ChemSafe assessments.
+*
+* Conducts a structured interview to collect the 10 infrastructure parameters
+* required by the risk-score engine, without requiring technical knowledge
+* from the user.
+*
+* REGISTER SYSTEM:
+* The agent operates across three adaptive registers, selected automatically
+* based on the complexity and vocabulary of the user's first 1-2 responses:
+* - Technical: assumes domain vocabulary (UPVC, Arrhenius, flow rate)
+* - Plain language: everyday terms, no jargon
+* - Sensory/Observational: physical interaction proxies (fingernail test,
+* visual inspection, photo upload) for users with no technical reference
+*
+* CONVERSATION RULES:
+* - One question per turn, never two
+* - "I don't know" quick-reply always available
+* - Maximum 18 turns before closing with conservative defaults
+* - Full conversation history sent on every API call (stateless model)
+*
+* FIRST MESSAGE (always):
+* "I'm going to ask you about 8 short questions about your water pipes.
+* You don't need to know technical details — I'll guide you through it.
+* If you're not sure about something, just say so and I'll help. Ready?"
+*/
+parameter-extractor.ts
+Most important file for PresentMeApp
+/**
+* Parameter Extractor — Maps conversational text to structured risk inputs.
+*
+* Translates the raw conversation into the typed parameter object consumed
+* by the risk-score engine. Each extracted parameter carries a confidence
+* score reflecting how directly it was obtained.
+*
+* PARAMETERS EXTRACTED (10 total):
+* pipe_material, gum_type, installation_age_years, pipe_diameter_mm,
+* avg_temp_celsius, daily_uv_hours, water_flow_rate,
+* buried_or_exposed, use_context, population_served
+*
+* EXTRACTION EXAMPLE:
+* User says: "the pipe is white and hard, been here since my father
+* bought the land about 15 years ago"
+*
+* Extracts: {
+* pipe_material: 'UPVC', confidence: 0.72,
+* installation_age_years: 15, confidence: 0.65,
+* inference_method: 'conversational_proxy'
+* }
+*
+* CONFIDENCE TIERS:
+* Direct answer (user states value explicitly) → 1.0
+* Inferred from description or proxy answer → 0.6–0.8
+* Conservative default applied after "I don't know"→ 0.4
+*
+* When avg_confidence across all parameters drops below 0.85,
+* risk-score.ts returns a range rather than a point value.
+*/
+proxy-questions.ts
+Include real examples — PresentMeApp mines these
+/**
+* Proxy Question Bank — Sensory and observational fallbacks.
+*
+* When a user cannot answer a direct technical question, the agent
+* falls back to physically observable proxies that map to the same
+* parameter with a known confidence reduction.
+*
+* PROXY EXAMPLES BY PARAMETER:
+*
+* pipe_material (direct: "what type of pipe?"):
+* → "Press your fingernail into the pipe. Does it leave a dent,
+* or is it too hard?" (soft = PVC/flexible, hard = UPVC/CPVC)
+* → "Upload a photo of the pipe and joint area"
+*
+* installation_age_years (direct: "how old is the installation?"):
+* → "Was it installed before or after your last harvest season?"
+* → "Does the pipe feel brittle — does it crack if you tap it?"
+* (brittleness correlates with age-related UV degradation)
+*
+* avg_temp_celsius (direct: "average daily temperature?"):
+* → "Is the pipe in direct sun for most of the day, partial shade,
+* or mostly underground?" (maps to regional climate presets)
+*
+* water_flow_rate (direct: "continuous, intermittent, or stagnant?"):
+* → "Does water run through this pipe every day, only when you
+* irrigate, or does it sit still most of the time?"
+*/
+confidence-scorer.ts
+Define all tiers explicitly
+/**
+* Confidence Scorer — Rates certainty of each extracted parameter.
+*
+* Assigns a confidence float (0.0–1.0) to each parameter based on
+* how it was obtained. The aggregate confidence determines whether
+* the final risk output is a point score or a range.
+*
+* CONFIDENCE SCALE:
+* 1.0 — User stated value directly and unambiguously
+* 0.8 — Inferred from a clear description (colour, texture, age reference)
+* 0.6 — Inferred from a sensory proxy (fingernail test, brittleness)
+* 0.4 — Conservative default applied; user answered "I don't know"
+* 0.0 — Parameter not obtainable; worst-case assumption used
+*
+* SCORE OUTPUT LOGIC:
+* avg_confidence >= 0.85 → point score e.g. "74 — HIGH RISK"
+* avg_confidence 0.65–0.84→ narrow range e.g. "68–80 — likely HIGH RISK"
+* avg_confidence < 0.65 → wide range e.g. "55–85 — MODERATE to HIGH RISK"
+*
+* All inferred parameters are flagged in the results UI with an
+* "estimated" badge so the user understands what was guessed.
+*/
+image-analyzer.ts
+Explain the vision strategy and failure handling
+/**
+* Image Analyzer — Vision-based pipe material identification.
+*
+* Accepts a base64-encoded image upload from the interview agent and
+* returns a material identification with confidence score.
+*
+* VISION PROMPT STRATEGY:
+* The model is instructed to look for: pipe colour, surface texture,
+* joint/gum characteristics, visible markings or stamps, and signs
+* of UV degradation (chalking, discolouration, surface cracking).
+*
+* CONFIDENCE THRESHOLD:
+* >= 0.75 → Use identification, confirm with user before applying
+* 0.5–0.74→ Present as best guess, ask user to confirm or override
+* < 0.5 → Discard result, fall back to plain-language proxy questions
+* ("I couldn't make that out clearly — can you describe
+* what you see instead?")
+*
+* CONFIRMATION RULE:
+* The agent ALWAYS confirms its visual identification with the user
+* before using it as a parameter input. A wrong silent inference is
+* worse than asking again.
+*
+* FAILURE CASES HANDLED:
+* Blurry / dark image → fallback to proxy questions
+* Painted pipe → flag as unidentifiable, use 'Unknown' default
+* No pipe visible → ask user to retake with pipe in frame
+*/
+05 — Error Handling
+API Failure Matrix
+Three distinct failure paths in agent-turn.ts. Each has a specific user-facing behaviour. None should result in a broken or empty screen.
+
+Failure type	HTTP / Condition	User-facing behaviour	Technical action
+Rate limit / overload	429 or 529	Typing indicator stays. "Taking a moment..." shown after 3s. Transparent to user.	Auto-retry up to 2× with 3s backoff. If 3rd attempt fails, escalate to network failure path.
+Network failure mid-interview	Network error, 5xx	Banner: "Connection lost — your answers were saved." Button: "Continue on the form →"	All confirmed parameters written to sessionStorage. Expert form at /assess pre-fills from sessionStorage on load. User loses no data.
+Vision / image failure	Unclear image, low confidence	"I couldn't make that out clearly — could you describe what you see instead?" Agent continues in plain language register.	Confidence threshold check before any inference is used. Result discarded silently, fallback question triggered. Never use a low-confidence visual inference.
+Incomplete interview timeout	18 turns reached	"That's enough to work with — let me calculate your risk now." Assessment runs with conservative defaults for any uncollected parameters.	Turn counter in conversation state. At turn 18, agent closes gracefully, fills remaining params with worst-case defaults at confidence 0.4.
+06 — Architecture
+File Structure
+chemsafe-water-monitor/ ├── src/ │ ├── components/ │ │ ├── InfrastructureForm.tsx // expert form │ │ ├── RiskScoreDashboard.tsx // animated score + breakdown │ │ ├── RiskTimelineChart.tsx // months-to-threshold graph │ │ ├── ConversationalAgent.tsx // chat UI component │ │ ├── MessageBubble.tsx // message renderer │ │ ├── ImageUploadFlow.tsx // photo upload + preview │ │ ├── ConfidenceBadge.tsx // inferred vs direct label │ │ └── LimitationsPanel.tsx // always-visible scope panel │ ├── agent/ // ← PresentMeApp will mine this folder hardest │ │ ├── intake-agent.ts // Claude API call + conversation state │ │ ├── parameter-extractor.ts // conversation → structured params │ │ ├── confidence-scorer.ts // certainty rating per parameter │ │ ├── proxy-questions.ts // sensory fallback question bank │ │ ├── register-detector.ts // literacy level detection │ │ └── image-analyzer.ts // vision prompt → material ID │ ├── logic/ │ │ ├── polymer-degradation.ts │ │ ├── toxicity-thresholds.ts // WHO defaults; regional config-ready │ │ ├── risk-score.ts // accepts confidence ranges │ │ └── material-profiles.ts │ ├── i18n/ // ← NEW: all UI strings extracted here │ │ ├── en.json // English — live │ │ └── _template.json // translation template for contributors │ ├── pages/ │ │ ├── index.astro │ │ ├── interview.astro │ │ ├── assess.astro │ │ ├── about.astro │ │ └── results/[id].astro │ └── api/ │ ├── calculate-risk.ts │ └── agent-turn.ts // error matrix lives here └── package.json
+07 — Logic Engine
+Scoring (Unchanged)
+Thermal Degradation Index
+TDI = material_base_rate × e^(k × (temp - 25)) × age_years
+k = Arrhenius constant per material (UPVC: 0.042, CPVC: 0.031, HDPE: 0.018)
+UV Degradation Index
+UDI = (daily_uv_hours × 365 × age_years) × material_uv_sensitivity × (1 - burial_factor) × gum_uv_coefficient
+Final Risk Score with confidence
+if avg_confidence >= 0.85 → point score
+if avg_confidence 0.65–0.84 → narrow range (score ± 8%)
+if avg_confidence < 0.65 → wide range (score ± 15%)
+0–100
+Risk score bands
+0–30 Low: monitor annually
+31–60 Moderate: inspect in 6mo
+61–80 High: replace in 3mo
+81+ Critical: act now
+08 — Honest Scope
+Limitations (Global Version)
+Designed for
+Global warm-climate contexts
+Any agricultural or rural water infrastructure context with UV exposure and PVC pipe usage. West Africa, South Asia, SE Asia, Latin America.
+Not for
+Cold-climate buried systems
+Underground municipal pipe networks in cold climates degrade by different mechanisms not modelled here. UV degradation is negligible for fully buried pipes.
+Now accessible
+Non-technical users globally
+Sensory proxy questions and image upload mean users who cannot name their pipe material can still complete a useful assessment via physical observation.
+Phase 2 item
+Non-English speakers
+English only in Phase 1. Architecture is localisation-ready. French, Hindi, Portuguese, Hausa, Swahili targeted for Phase 2. No feature phone support yet.
+Transparent
+Inferred values visible
+All proxy-estimated parameters carry an "estimated" badge in results. Users see exactly what the agent inferred and from what.
+Not changed
+Predictive, not diagnostic
+Cannot detect contamination that has already occurred. Projects when contamination is likely to begin based on degradation modelling.
+09 — Roadmap
+Post-Hackathon
+Phase 2 — Language
+Multi-language support: French, Hindi, Portuguese, Hausa, Swahili. i18n architecture is live from day one — adding a language is translation, not code.
+Phase 2 — Thresholds
+Regional regulatory calibration: NAFDAC (Nigeria), BIS (India), ANVISA (Brazil), replacing WHO defaults where local standards are more specific.
+Phase 2 — Interface
+WhatsApp bot wrapping the same agent-turn.ts API — for extension officers in the field without a browser environment.
+Phase 3 — Access
+USSD / SMS interface for feature phones — stripped proxy-question flow, no image upload, text-only output.
+Commercial
+Aquaculture audit tool for commercial operators — Southeast Asia prawn/shrimp pond market alongside West Africa fish pond market.
+Open source
+Material profiles and threshold tables published as open data. Enables community contributions of regional constants and new pipe material profiles.
+ChemSafe Water Monitor
+Spec v3.0 — Final
+SDG 3 Hackathon
+Global deployment architecture

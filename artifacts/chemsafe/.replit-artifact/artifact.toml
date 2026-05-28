@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "ChemSafe Water Monitor"
+version = "1.0.0"
+id = "artifacts/chemsafe"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23522
+
+[services.development]
+run = "pnpm --filter @workspace/chemsafe run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/chemsafe", "run", "build" ]
+publicDir = "artifacts/chemsafe/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23522"
+BASE_PATH = "/"
