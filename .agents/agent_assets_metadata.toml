@@ -1,0 +1,14 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "FG20yADSES83l2UfwHWno"
+uri = "file://artifacts/chemsafe/public/hero-bg.png"
+type = "image"
+title = "pipe infrastructure dark mood"
+
+[[generated]]
+id = "-q-n7aCpi9iBI_BgyGlPx"
+uri = "file://artifacts/chemsafe/public/interview-bg.png"
+type = "image"
+title = "weathered pvc pipe close"

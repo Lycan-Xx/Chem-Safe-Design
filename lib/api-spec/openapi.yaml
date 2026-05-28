@@ -3,13 +3,17 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: ChemSafe Water Monitor API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: assessments
+    description: Water infrastructure risk assessments
+  - name: anthropic
+    description: Anthropic AI chat operations
 paths:
   /healthz:
     get:
@@ -24,6 +28,188 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /assessments:
+    get:
+      operationId: listAssessments
+      tags: [assessments]
+      summary: List all assessments
+      responses:
+        "200":
+          description: List of assessments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Assessment"
+    post:
+      operationId: createAssessment
+      tags: [assessments]
+      summary: Create a new assessment and calculate risk score
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssessmentInput"
+      responses:
+        "201":
+          description: Created assessment with risk score
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Assessment"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /assessments/{id}:
+    get:
+      operationId: getAssessment
+      tags: [assessments]
+      summary: Get a single assessment by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Assessment with full details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Assessment"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /anthropic/conversations:
+    get:
+      operationId: listAnthropicConversations
+      tags: [anthropic]
+      summary: List all conversations
+      responses:
+        "200":
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnthropicConversation"
+    post:
+      operationId: createAnthropicConversation
+      tags: [anthropic]
+      summary: Create a new conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnthropicConversationInput"
+      responses:
+        "201":
+          description: Created conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnthropicConversation"
+
+  /anthropic/conversations/{id}:
+    get:
+      operationId: getAnthropicConversation
+      tags: [anthropic]
+      summary: Get conversation with messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation with messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnthropicConversationWithMessages"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnthropicError"
+    delete:
+      operationId: deleteAnthropicConversation
+      tags: [anthropic]
+      summary: Delete a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnthropicError"
+
+  /anthropic/conversations/{id}/messages:
+    get:
+      operationId: listAnthropicMessages
+      tags: [anthropic]
+      summary: List messages in a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnthropicMessage"
+    post:
+      operationId: sendAnthropicMessage
+      tags: [anthropic]
+      summary: Send a message and receive an AI response (SSE stream)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnthropicMessageInput"
+      responses:
+        "200":
+          description: SSE stream of assistant response chunks
+          content:
+            text/event-stream: {}
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +220,212 @@ components:
       required:
         - status
 
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    AssessmentInput:
+      type: object
+      properties:
+        pipe_material:
+          type: string
+          enum: [UPVC, CPVC, HDPE, PVC, Unknown]
+        gum_type:
+          type: string
+          enum: [solvent_cement, rubber_ring, unknown]
+        installation_age_years:
+          type: number
+        pipe_diameter_mm:
+          type: ["number", "null"]
+        avg_temp_celsius:
+          type: number
+        daily_uv_hours:
+          type: number
+        water_flow_rate:
+          type: string
+          enum: [continuous, intermittent, stagnant]
+        buried_or_exposed:
+          type: string
+          enum: [buried, exposed, mixed]
+        use_context:
+          type: string
+          enum: [drinking, irrigation, fish_pond, livestock]
+        population_served:
+          type: ["number", "null"]
+        source:
+          type: string
+          enum: [interview, form]
+        confidence_scores:
+          type: ["object", "null"]
+          additionalProperties:
+            type: number
+        conversation_id:
+          type: ["integer", "null"]
+      required:
+        - pipe_material
+        - gum_type
+        - installation_age_years
+        - avg_temp_celsius
+        - daily_uv_hours
+        - water_flow_rate
+        - buried_or_exposed
+        - use_context
+        - source
+
+    Assessment:
+      type: object
+      properties:
+        id:
+          type: string
+        pipe_material:
+          type: string
+        gum_type:
+          type: string
+        installation_age_years:
+          type: number
+        pipe_diameter_mm:
+          type: ["number", "null"]
+        avg_temp_celsius:
+          type: number
+        daily_uv_hours:
+          type: number
+        water_flow_rate:
+          type: string
+        buried_or_exposed:
+          type: string
+        use_context:
+          type: string
+        population_served:
+          type: ["number", "null"]
+        source:
+          type: string
+        risk_score:
+          type: number
+        risk_band:
+          type: string
+          enum: [low, moderate, high, critical]
+        score_min:
+          type: ["number", "null"]
+        score_max:
+          type: ["number", "null"]
+        months_to_threshold:
+          type: number
+        tdi:
+          type: number
+        udi:
+          type: number
+        avg_confidence:
+          type: ["number", "null"]
+        confidence_scores:
+          type: ["object", "null"]
+          additionalProperties:
+            type: number
+        action_recommendation:
+          type: string
+        conversation_id:
+          type: ["integer", "null"]
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - pipe_material
+        - gum_type
+        - installation_age_years
+        - avg_temp_celsius
+        - daily_uv_hours
+        - water_flow_rate
+        - buried_or_exposed
+        - use_context
+        - source
+        - risk_score
+        - risk_band
+        - months_to_threshold
+        - tdi
+        - udi
+        - action_recommendation
+        - created_at
+
+    AnthropicConversation:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - createdAt
+
+    AnthropicMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        conversationId:
+          type: integer
+        role:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - conversationId
+        - role
+        - content
+        - createdAt
+
+    AnthropicConversationInput:
+      type: object
+      properties:
+        title:
+          type: string
+      required:
+        - title
+
+    AnthropicMessageInput:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
+
+    AnthropicConversationWithMessages:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnthropicMessage"
+      required:
+        - id
+        - title
+        - createdAt
+        - messages
+
+    AnthropicError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
