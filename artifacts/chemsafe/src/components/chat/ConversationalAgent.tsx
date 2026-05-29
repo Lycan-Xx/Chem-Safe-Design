@@ -10,7 +10,7 @@ import type {
 } from "@/types/agent";
 import type { PartialInfrastructureParams } from "@/types/infrastructure";
 import type { RiskScoreResult } from "@/types/results";
-import { Camera, Send, ChevronRight, AlertCircle } from "lucide-react";
+import { Camera, Send, ChevronRight, AlertCircle, ArrowRight, CheckCircle2 } from "lucide-react";
 
 interface ConversationalAgentProps {
   onComplete?: (result: RiskScoreResult) => void;
@@ -34,6 +34,7 @@ export default function ConversationalAgent({
   const [register, setRegister] = useState<UserRegister>("undetected");
   const [networkError, setNetworkError] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [resultsSessionId, setResultsSessionId] = useState<string | null>(null);
   const [sessionId] = useState(() => crypto.randomUUID());
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -102,17 +103,25 @@ export default function ConversationalAgent({
 
         addMessage("agent", data.agentMessage);
 
+        // Build the up-to-date params/scores NOW (before setState is flushed)
+        // so finalizeInterview always sees the full picture including this turn's extraction.
+        const nextParams = data.extractedParam
+          ? { ...currentParams, [data.extractedParam.parameter]: data.extractedParam.value }
+          : { ...currentParams };
+        const nextScores = data.extractedParam
+          ? { ...confidenceScores, [data.extractedParam.parameter]: data.extractedParam.confidence }
+          : { ...confidenceScores };
+
         if (data.extractedParam) {
-          const { parameter, value, confidence } = data.extractedParam;
-          setCurrentParams((prev) => ({ ...prev, [parameter]: value }));
-          setConfidenceScores((prev) => ({ ...prev, [parameter]: confidence }));
+          setCurrentParams(nextParams);
+          setConfidenceScores(nextScores);
         }
 
         if (data.updatedRegister !== "undetected") {
           setRegister(data.updatedRegister);
         }
 
-        setQuickReplies(data.quickReplies ?? []);
+        setQuickReplies(data.isComplete ? [] : (data.quickReplies ?? []));
         setTurnCount((prev) => prev + 1);
 
         if (data.triggerImageUpload) {
@@ -121,12 +130,12 @@ export default function ConversationalAgent({
 
         if (data.error) {
           setNetworkError(true);
-          sessionStorage.setItem("chemsafe_params", JSON.stringify(currentParams));
-          sessionStorage.setItem("chemsafe_confidence", JSON.stringify(confidenceScores));
+          sessionStorage.setItem("chemsafe_params", JSON.stringify(nextParams));
+          sessionStorage.setItem("chemsafe_confidence", JSON.stringify(nextScores));
         }
 
         if (data.isComplete) {
-          await finalizeInterview(currentParams, confidenceScores);
+          await finalizeInterview(nextParams, nextScores);
         }
       } catch {
         setNetworkError(true);
@@ -167,10 +176,11 @@ export default function ConversationalAgent({
 
       sessionStorage.setItem("chemsafe_result", JSON.stringify(result));
 
+      // Show an inline CTA rather than auto-redirecting — let the user decide when to proceed
+      setResultsSessionId(result.sessionId);
+
       if (onComplete) {
         onComplete(result);
-      } else {
-        setLocation(`/results/${result.sessionId}`);
       }
     } catch {
       sessionStorage.setItem("chemsafe_params", JSON.stringify(params));
@@ -260,6 +270,40 @@ export default function ConversationalAgent({
                 className="w-2 h-2 bg-foreground rounded-full animate-bounce"
                 style={{ animationDelay: "0.4s" }}
               />
+            </div>
+          </div>
+        )}
+
+        {isCalculating && !resultsSessionId && (
+          <div className="flex justify-start">
+            <div className="border border-border p-4 max-w-sm">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground animate-pulse">
+                Running risk model…
+              </p>
+            </div>
+          </div>
+        )}
+
+        {resultsSessionId && (
+          <div className="flex justify-start">
+            <div className="border-2 border-accent p-5 max-w-sm space-y-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-accent shrink-0" />
+                <span className="font-mono text-xs uppercase tracking-widest text-accent font-bold">
+                  Assessment complete
+                </span>
+              </div>
+              <p className="font-sans text-sm text-foreground leading-relaxed">
+                Your risk model is ready. You can view it now or stay here to
+                add any extra details first.
+              </p>
+              <button
+                onClick={() => setLocation(`/results/${resultsSessionId}`)}
+                className="w-full flex items-center justify-between bg-accent text-background px-4 py-3 font-mono text-xs uppercase tracking-widest hover:opacity-90 transition-opacity"
+              >
+                <span>View my results</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
         )}

@@ -1,14 +1,16 @@
 import type { ParameterExtraction } from '../types/agent.js';
 import type { PartialInfrastructureParams } from '../types/infrastructure.js';
 
-const EXTRACT_PATTERN = /\[EXTRACT\]([\s\S]*?)\[\/EXTRACT\]/;
+const EXTRACT_PATTERN = /\[EXTRACT\]([\s\S]*?)\[\/EXTRACT\]/g;
 
 export function parseExtraction(rawResponse: string): {
   displayText: string;
   extraction: ParameterExtraction | null;
 } {
-  const match = rawResponse.match(EXTRACT_PATTERN);
+  const allMatches = [...rawResponse.matchAll(EXTRACT_PATTERN)];
+  const match = allMatches[0] ?? null;
 
+  // Strip ALL [EXTRACT] blocks from display text — even if DeepSeek emitted several
   const displayText = rawResponse.replace(EXTRACT_PATTERN, '').trim();
 
   if (!match) {

@@ -62,8 +62,14 @@ water_flow_rate → "Does water run through this pipe every day, only
 
 EXTRACTION FORMAT:
 After EVERY user reply, if you identified a parameter value, append
-this block at the very end of your response. The UI strips it — users
-never see it. If no extraction is possible, omit the block entirely.
+EXACTLY ONE block at the very end of your response. Never emit more than
+one [EXTRACT] block per turn. The UI strips it — users never see it.
+If no extraction is possible, omit the block entirely.
+
+CRITICAL: Do NOT summarise or list extracted values in your visible text.
+Do NOT write things like "So I'll note that as..." or "I have noted:...".
+Just ask the next question naturally. The [EXTRACT] block is the only
+record of extracted data — never show it in your message text.
 
 [EXTRACT]
 {
