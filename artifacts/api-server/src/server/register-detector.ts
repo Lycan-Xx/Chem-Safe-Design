@@ -12,7 +12,8 @@ const UNCERTAINTY_MARKERS = [
   "never heard", "what is",
 ];
 
-export function detectRegister(firstReply: string): UserRegister {
+export function detectRegister(firstReply: string | undefined): UserRegister {
+  if (!firstReply) return 'undetected';
   const lower = firstReply.toLowerCase().trim();
   const wordCount = lower.split(/\s+/).length;
 

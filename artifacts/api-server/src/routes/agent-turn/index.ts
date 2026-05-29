@@ -8,10 +8,21 @@ const router: IRouter = Router();
 router.post('/agent-turn', async (req, res): Promise<void> => {
   const body = req.body as AgentTurnRequest;
 
-  if (!body || typeof body.turnCount !== 'number') {
+  if (
+    !body ||
+    typeof body.turnCount !== 'number' ||
+    !Array.isArray(body.conversationHistory)
+  ) {
     res.status(400).json({ error: 'Invalid request body' });
     return;
   }
+
+  // Coerce missing fields to safe defaults so partial payloads don't crash
+  body.userMessage = body.userMessage ?? '';
+  body.currentParams = body.currentParams ?? {};
+  body.confidenceScores = body.confidenceScores ?? {};
+  body.register = body.register ?? 'undetected';
+  body.sessionId = body.sessionId ?? 'unknown';
 
   try {
     let turnResult: AgentTurnResponse;
