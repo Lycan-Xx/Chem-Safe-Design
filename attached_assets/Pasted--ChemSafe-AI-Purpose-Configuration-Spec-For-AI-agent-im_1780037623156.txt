@@ -1,0 +1,524 @@
+# ChemSafe — AI Purpose & Configuration Spec
+**For:** AI agent implementing the ChemSafe codebase  
+**Covers:** Core AI architecture goal, provider roles, env setup, Gemini walkthrough  
+**Version:** 1.0
+
+---
+
+## 0. The Single Most Important Thing to Understand
+
+The AI implementation in ChemSafe has **one core goal split across two providers**:
+
+```
+DeepSeek  →  runs the conversation
+Gemini    →  reads the photos
+```
+
+That is the entire architecture. Everything else — the failover router,
+the confidence scoring, the parameter extractor — exists to support
+those two responsibilities reliably. Do not blur this boundary. DeepSeek
+never touches an image. Gemini never drives a conversation turn.
+
+---
+
+## 1. Why Two Providers, Not One
+
+### The Problem With Using One Provider For Everything
+
+A single provider approach would mean either:
+- Using Gemini for the conversation (expensive, overkill, slower)
+- Using DeepSeek for images (it cannot — DeepSeek V3 is text-only)
+
+Neither works cleanly. The split exists because each provider is
+genuinely best-suited to its specific task.
+
+### DeepSeek's Role — The Interview Agent
+
+DeepSeek V3 is chosen for the conversational interview for three reasons:
+
+1. **Cost** — at ~$0.27/million input tokens it is cheap enough that
+   hundreds of full interview sessions cost less than $1 total.
+2. **Instruction following** — it handles long system prompts reliably
+   and consistently follows structured output instructions like the
+   `[EXTRACT]` block pattern.
+3. **OpenAI-compatible API** — the existing `makeDeepSeekRequest()`
+   in `MultiProviderAIService` already works. No new integration needed.
+
+DeepSeek handles every text turn:
+- Asking the next interview question
+- Adapting vocabulary to the user's literacy level
+- Extracting parameter values from answers
+- Generating the `[EXTRACT]` JSON block
+- Closing the interview with a summary
+
+### Gemini Flash's Role — Image Analysis Only
+
+Gemini 1.5 Flash is chosen for image analysis for three reasons:
+
+1. **Free tier** — 15 requests/minute, 1 million requests/day. For a
+   hackathon this is effectively unlimited and costs nothing.
+2. **Vision capability** — unlike DeepSeek, it actually supports
+   multimodal input (text + image in the same request).
+3. **Speed** — Flash is the fastest Gemini variant, which matters
+   because image analysis blocks the conversation until it returns.
+
+Gemini handles exactly one thing:
+- Receiving a base64-encoded pipe photo
+- Returning a material identification with a confidence score
+- That result is injected into the DeepSeek conversation as context
+
+**Gemini never sees the conversation history.**
+**Gemini never decides what question to ask next.**
+**Gemini only answers: "what is in this photo?"**
+
+---
+
+## 2. The Data Flow — Step by Step
+
+### Text Turn (most turns)
+
+```
+User types answer
+        ↓
+ConversationalAgent.tsx
+  → POST /api/agent-turn  { userMessage, conversationHistory, ... }
+        ↓
+src/api/agent-turn.ts
+  → no imageData present → call processInterviewTurn()
+        ↓
+src/server/intake-agent.ts
+  → aiRouter.executeInterviewTurn(systemPrompt, history, message)
+        ↓
+src/server/ai-router.ts
+  → getAvailableProvider() → returns 'deepseek-chat' (priority 1)
+  → makeDeepSeekRequest()
+        ↓
+DeepSeek API
+  → returns: "That sounds like UPVC pipe...[EXTRACT]{...}[/EXTRACT]"
+        ↓
+src/server/parameter-extractor.ts
+  → parseExtraction() strips [EXTRACT] block
+  → returns: { displayText: "That sounds like UPVC pipe...",
+               extraction: { parameter: 'pipe_material', ... } }
+        ↓
+AgentTurnResponse returned to client
+  → agentMessage: "That sounds like UPVC pipe..."  ← no [EXTRACT]
+  → extractedParam: { parameter: 'pipe_material', value: 'UPVC', ... }
+        ↓
+ConversationalAgent.tsx updates state
+```
+
+### Image Turn (when user uploads a photo)
+
+```
+User taps camera button → selects/takes photo
+        ↓
+ImageUploadFlow.tsx
+  → converts File to base64
+  → calls sendTurn('', { base64, mimeType })
+        ↓
+ConversationalAgent.tsx
+  → POST /api/agent-turn  { imageData: { base64, mimeType }, ... }
+        ↓
+src/api/agent-turn.ts
+  → imageData IS present → call analyzeImageForInterview()
+        ↓
+src/server/image-analyzer.ts
+  → aiRouter.analyzeImageDirect(base64, mimeType)
+        ↓
+src/server/ai-router.ts
+  → makeGeminiRequest('gemini-flash', visionPrompt, { base64, mimeType })
+  → NOTE: this bypasses executeWithFailover() entirely
+  → NOTE: does NOT go through DeepSeek at all
+        ↓
+Gemini Flash API
+  → returns JSON: { pipe_material: "UPVC", pipe_material_confidence: 0.82, ... }
+        ↓
+src/server/image-analyzer.ts
+  → confidence >= 0.75 → build confirmation message
+  → returns: { agentMessage: "This looks like UPVC pipe. Does that sound right?",
+               extraction: { parameter: 'pipe_material', value: 'UPVC', ... } }
+        ↓
+AgentTurnResponse returned to client
+  → user sees confirmation message, not raw Gemini JSON
+  → quick replies: ['Yes, that's right', 'No, that's wrong']
+```
+
+---
+
+## 3. What the Agent Must Never Do
+
+These are violations of the architecture. If you find yourself doing
+any of these, stop and re-read this spec.
+
+| ❌ Wrong | ✅ Correct |
+|---|---|
+| Calling `executeWithFailover()` for image analysis | Call `analyzeImageDirect()` directly |
+| Returning a raw `[EXTRACT]` block to the client | Always call `parseExtraction()` before returning |
+| Using Gemini for a text conversation turn | Only DeepSeek (or failover chain) for text |
+| Silently applying a Gemini image result without user confirmation | Always return a confirmation message for vision results |
+| Importing `ai-router.ts` in a React component | Only import in `src/server/` or `src/api/` |
+| Hardcoding model names like `'deepseek-chat'` | Always read from environment variables |
+
+---
+
+## 4. Environment Variables
+
+### What is required vs optional
+
+```
+REQUIRED — ChemSafe will not work without these:
+  DEEPSEEK_API_KEY     primary interview agent
+  GEMINI_API_KEY       image analysis
+
+OPTIONAL — failover chain, used if DeepSeek fails:
+  OPENAI_API_KEY       fallback text provider
+  ANTHROPIC_API_KEY    fallback text provider
+  OPENROUTER_API_KEY   fallback text provider (cheapest open models)
+  MOONSHOT_API_KEY     fallback text provider
+
+NOT NEEDED FOR CHEMSAFE (from previous project):
+  VITE_* variants of AI keys — ChemSafe AI runs server-side only.
+  No AI key should ever be exposed to the client bundle.
+  These can be present without causing harm, but do not add new
+  VITE_ prefixed AI keys for this project.
+```
+
+### Updated `.env.example`
+
+Replace your existing `.env.example` with this. It preserves every
+variable from the previous project and adds the ChemSafe-specific
+annotations.
+
+```dotenv
+# ===========================================
+# ChemSafe Water Monitor - Environment Configuration
+# ===========================================
+# Copy this file to .env and fill in your actual values.
+# Never commit .env to version control.
+
+# -------------------------------------------
+# AI PROVIDERS — CHEMSAFE ROLES
+# -------------------------------------------
+
+# DeepSeek — PRIMARY: runs the conversational interview agent
+# Required. Without this, the guided interview will not work.
+# Get key: https://platform.deepseek.com → API Keys
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
+
+# Gemini — PRIMARY: image analysis only (pipe material identification)
+# Required. Without this, photo uploads in the interview will fail
+# gracefully (falls back to proxy questions) but won't analyse images.
+# IMPORTANT: Use a key with Gemini 1.5 Flash access enabled.
+# Get key: https://aistudio.google.com/app/apikey
+# Setup: see GEMINI_SETUP.md or Section 5 of this spec.
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# -------------------------------------------
+# AI PROVIDERS — FAILOVER CHAIN (optional)
+# -------------------------------------------
+# These are used automatically if DeepSeek is unavailable.
+# Priority order (after DeepSeek): OpenRouter → OpenAI → Anthropic → Kimi
+# Leave blank if you don't have keys — the router skips missing providers.
+
+# OpenRouter — cheapest failover, supports Llama and Mistral models
+OPENROUTER_API_KEY=your_openrouter_api_key
+
+# OpenAI — fallback text provider
+OPENAI_API_KEY=your_openai_api_key
+
+# Anthropic — fallback text provider
+ANTHROPIC_API_KEY=your_anthropic_api_key
+
+# Kimi (Moonshot) — fallback text provider
+MOONSHOT_API_KEY=your_kimi_api_key
+
+# -------------------------------------------
+# NOTE ON VITE_ PREFIXED AI KEYS
+# -------------------------------------------
+# The previous project used VITE_ prefixed keys for client-side access.
+# ChemSafe does NOT use client-side AI calls — all AI runs server-side.
+# Do not add VITE_DEEPSEEK_API_KEY or VITE_GEMINI_API_KEY here.
+# The ai-router.ts reads server-side env vars only (no VITE_ prefix).
+# If your existing code references VITE_ variants, the router already
+# checks both: process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY
+# So existing VITE_ keys will still work as a fallback.
+
+# -------------------------------------------
+# SUPABASE (if used for result persistence)
+# -------------------------------------------
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# -------------------------------------------
+# GOOGLE OAUTH (if used)
+# -------------------------------------------
+GOOGLE_OAUTH_CLIENT_ID=your_google_oauth_client_id
+GOOGLE_OAUTH_CLIENT_SECRET=your_google_oauth_client_secret
+
+# -------------------------------------------
+# APP CONFIGURATION
+# -------------------------------------------
+NODE_ENV=development
+PORT=4321
+SITE_URL=http://localhost:4321
+APP_NAME=ChemSafe Water Monitor
+
+# API base URL
+# Local: http://localhost:4321
+# Production: https://your-deployed-url.com
+VITE_API_URL=http://localhost:4321
+```
+
+### Your actual `.env` file
+
+Copy `.env.example` to `.env` and fill in only these two to get started:
+
+```dotenv
+DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
+GEMINI_API_KEY=AIzaxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+Everything else can be filled in later. The failover chain will simply
+skip any provider whose key is blank or missing.
+
+---
+
+## 5. Gemini API Key Setup — Step by Step
+
+This section covers getting the right Gemini key for this specific use
+case (vision / multimodal, free tier).
+
+### What You Need
+
+- A Google account
+- Access to Google AI Studio (free, no billing required for free tier)
+- The key must have access to `gemini-1.5-flash` specifically
+
+### Step 1 — Go to Google AI Studio
+
+Open: **https://aistudio.google.com/app/apikey**
+
+Sign in with your Google account if prompted.
+
+### Step 2 — Create a New API Key
+
+Click **"Create API key"**.
+
+When prompted to select a project:
+- If you have an existing Google Cloud project, you can use it
+- If not, click **"Create API key in new project"** — Google creates
+  a project automatically. You do not need to configure anything.
+
+Copy the key. It starts with `AIza`.
+
+### Step 3 — Verify the Key Has Flash Access
+
+Go to: **https://aistudio.google.com/app/prompts/new_chat**
+
+In the model selector (top right), check that **"Gemini 1.5 Flash"**
+appears in the list. If it does, your key has access.
+
+You do not need to select it or do anything else here.
+
+### Step 4 — Check Free Tier Limits
+
+For this use case the free tier is sufficient:
+
+| Limit | Free tier | ChemSafe usage |
+|---|---|---|
+| Requests per minute | 15 | ~1 per interview (user uploads one photo) |
+| Requests per day | 1,500 | Sufficient for hundreds of users |
+| Input tokens per minute | 1,000,000 | Well within range |
+| Cost | $0 | Free |
+
+You do not need to add billing. If you ever need to scale beyond
+these limits, Gemini 1.5 Flash costs $0.075/million tokens paid.
+
+### Step 5 — Add to Your .env File
+
+```dotenv
+GEMINI_API_KEY=AIzaxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+Do not add a `VITE_` prefix. ChemSafe's image analyzer runs server-side.
+
+### Step 6 — Verify It Works
+
+Run this curl command to confirm the key works with Flash specifically:
+
+```bash
+curl -s \
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=YOUR_KEY_HERE" \
+  -H 'Content-Type: application/json' \
+  -d '{"contents":[{"parts":[{"text":"Reply with just the word: working"}]}]}' \
+  | grep -o '"text": "[^"]*"'
+```
+
+Expected output: `"text": "working"`
+
+If you see an error like `API_KEY_INVALID` — regenerate the key in
+AI Studio. If you see `MODEL_NOT_FOUND` — the key does not have
+Flash access; create a new project in AI Studio and generate a fresh key.
+
+### Step 7 — Test Vision Specifically
+
+ChemSafe uses Gemini for vision (multimodal), not just text.
+Confirm vision is enabled on your key:
+
+```bash
+# Encode a test image (use any small JPEG on your machine)
+BASE64=$(base64 -i any_image.jpg)
+
+curl -s \
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=YOUR_KEY_HERE" \
+  -H 'Content-Type: application/json' \
+  -d "{
+    \"contents\": [{
+      \"parts\": [
+        {\"text\": \"What is in this image? Reply in one sentence.\"},
+        {\"inline_data\": {\"mime_type\": \"image/jpeg\", \"data\": \"${BASE64}\"}}
+      ]
+    }]
+  }" \
+  | grep -o '"text": "[^"]*"'
+```
+
+If this returns a description of the image, vision is working.
+If it returns an error, you are likely using the v1 endpoint instead
+of v1beta — check that `ai-router.ts` uses the v1beta URL.
+
+### Common Mistakes
+
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Using v1 API URL instead of v1beta | `MODEL_NOT_FOUND` for vision requests | Change URL to `.../v1beta/models/...` |
+| Adding VITE_ prefix to key | Key undefined on server | Remove VITE_ prefix |
+| Using gemini-pro instead of gemini-1.5-flash | Higher latency, hits rate limits faster | Confirm model string is `gemini-1.5-flash` |
+| Forgetting to strip data URL prefix | Base64 includes `data:image/jpeg;base64,` which breaks the API | Split on `,` and take index `[1]` |
+| Sending image to DeepSeek by mistake | Error or garbled response | Only `analyzeImageDirect()` sends images — never `executeWithFailover()` |
+
+---
+
+## 6. How the Existing MultiProviderAIService Maps to ChemSafe
+
+This section is for the implementing agent to understand which parts
+of the existing code serve which new purpose.
+
+```
+EXISTING METHOD                  CHEMSAFE PURPOSE
+─────────────────────────────────────────────────────────────────────
+executeWithFailover()         →  drives all DeepSeek text turns
+                                 called by executeInterviewTurn()
+
+makeDeepSeekRequest()         →  the actual DeepSeek API call
+                                 no changes needed
+
+makeGeminiRequest()           →  needs vision branch added (imageData param)
+                                 called by analyzeImageDirect() only
+                                 NOT called by executeWithFailover()
+
+parseAIResponse()             →  used by parameter-extractor.ts to
+                                 parse JSON from [EXTRACT] blocks
+
+makeMockRequest()             →  needs interview fallback branch added
+                                 used when ALL providers fail
+
+executeWithFailover()         →  DO NOT use for image analysis
+                                 image analysis BYPASSES this method
+
+initializeProviders()         →  change DeepSeek priority to 1
+                                 (was 3 in previous project)
+                                 change Gemini Flash priority to 3
+                                 (was 2 — reserved for vision, not text)
+
+All other methods             →  unchanged, keep exactly as-is
+```
+
+### The One Priority Change That Matters
+
+In your existing code, Gemini Flash has priority 2 and DeepSeek has
+priority 3. This means Gemini was being picked first for text work
+in your previous project. For ChemSafe this is wrong — Gemini should
+never handle text conversation turns.
+
+Change these two lines in `initializeProviders()`:
+
+```typescript
+// DeepSeek: change priority from 3 to 1
+this.providers.set('deepseek-chat', {
+  name: 'DeepSeek Chat',
+  available: true,
+  requestCount: 0,
+  lastReset: Date.now(),
+  maxRequests: 30,
+  resetInterval: 60 * 1000,
+  priority: 1,           // ← WAS 3, NOW 1 — first choice for text
+  costPerToken: 0.00014,
+  maxTokens: 128000
+});
+
+// Gemini Flash: change priority from 2 to 3
+this.providers.set('gemini-flash', {
+  name: 'Gemini Flash',
+  available: true,
+  requestCount: 0,
+  lastReset: Date.now(),
+  maxRequests: 15,
+  resetInterval: 60 * 1000,
+  priority: 3,           // ← WAS 2, NOW 3 — text failover only
+  costPerToken: 0.000125,
+  maxTokens: 1000000
+});
+```
+
+This single change ensures that in normal operation:
+- All text turns → DeepSeek (priority 1)
+- All image turns → Gemini directly (bypasses priority system)
+- Gemini only enters the text failover chain if DeepSeek AND all
+  priority-2 providers fail
+
+---
+
+## 7. Quick Verification Checklist
+
+Before considering the AI implementation complete, verify every item:
+
+```
+Environment
+  [ ] DEEPSEEK_API_KEY is set in .env
+  [ ] GEMINI_API_KEY is set in .env
+  [ ] Neither key has a VITE_ prefix
+  [ ] .env is in .gitignore
+  [ ] .env.example has placeholder values (not real keys)
+
+Provider priorities
+  [ ] deepseek-chat has priority: 1
+  [ ] gemini-flash has priority: 3 (not 1 or 2)
+
+Text turns
+  [ ] A text turn calls makeDeepSeekRequest() (check logs)
+  [ ] [EXTRACT] block never appears in agentMessage to client
+  [ ] Turn 0 returns onboarding message without any API call
+
+Image turns
+  [ ] An image turn calls makeGeminiRequest() (check logs)
+  [ ] An image turn does NOT call makeDeepSeekRequest()
+  [ ] Low-confidence vision result returns a proxy question, not the guess
+  [ ] File > 4MB is rejected client-side before any API call
+
+Failure handling
+  [ ] DeepSeek 429 → auto-retry, not an error shown to user
+  [ ] Network failure → sessionStorage saved, banner shown
+  [ ] Gemini failure → proxy question shown, interview continues
+  [ ] All providers down → mock fallback message, redirect to form
+
+Security
+  [ ] No AI key appears in browser network tab
+  [ ] No file in src/components/ imports from src/server/
+```
+
+---
+
+*ChemSafe AI Purpose & Configuration Spec — v1.0*  
+*Core principle: DeepSeek talks. Gemini looks. Neither crosses over.*

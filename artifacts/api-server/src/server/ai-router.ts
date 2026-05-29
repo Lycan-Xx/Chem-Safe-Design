@@ -2,14 +2,14 @@
  * AI Router — MultiProvider failover for ChemSafe interview turns.
  *
  * Provider priority (1 = highest):
- *   1  DeepSeek   — primary text model
- *   2  OpenAI     — first fallback
- *   3  Anthropic  — second fallback
- *   4  Gemini     — text fallback only; vision goes via analyzeImageDirect()
- *   5  OpenRouter — third fallback
- *   6  Kimi       — fourth fallback
- *   7  HuggingFace— last text fallback
- *   999 Mock      — always available, returns structured error
+ *   1  DeepSeek    — primary text model (all interview turns)
+ *   2  OpenRouter  — first fallback (cheapest open models)
+ *   3  OpenAI      — second fallback
+ *   4  Anthropic   — third fallback
+ *   5  Kimi        — fourth fallback
+ *   6  Gemini      — text fallback only; vision ALWAYS goes via analyzeImageDirect()
+ *   7  HuggingFace — last text fallback
+ *   999 Mock       — always available, returns structured error
  *
  * Rules:
  * - Never route image analysis through executeWithFailover()
@@ -44,9 +44,18 @@ class AIRouter {
       maxRequestsPerMinute: 60,
     });
 
+    this.providers.set('openrouter', {
+      name: 'openrouter',
+      priority: 2,
+      available: !!process.env.OPENROUTER_API_KEY,
+      rateLimitReset: 0,
+      requestCount: 0,
+      maxRequestsPerMinute: 40,
+    });
+
     this.providers.set('openai', {
       name: 'openai',
-      priority: 2,
+      priority: 3,
       available: !!process.env.OPENAI_API_KEY,
       rateLimitReset: 0,
       requestCount: 0,
@@ -55,38 +64,29 @@ class AIRouter {
 
     this.providers.set('anthropic', {
       name: 'anthropic',
-      priority: 3,
+      priority: 4,
       available: !!process.env.ANTHROPIC_API_KEY,
       rateLimitReset: 0,
       requestCount: 0,
       maxRequestsPerMinute: 50,
     });
 
-    this.providers.set('gemini', {
-      name: 'gemini',
-      priority: 4,
-      available: !!(process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY),
-      rateLimitReset: 0,
-      requestCount: 0,
-      maxRequestsPerMinute: 60,
-    });
-
-    this.providers.set('openrouter', {
-      name: 'openrouter',
-      priority: 5,
-      available: !!process.env.OPENROUTER_API_KEY,
-      rateLimitReset: 0,
-      requestCount: 0,
-      maxRequestsPerMinute: 40,
-    });
-
     this.providers.set('kimi', {
       name: 'kimi',
-      priority: 6,
+      priority: 5,
       available: !!process.env.MOONSHOT_API_KEY,
       rateLimitReset: 0,
       requestCount: 0,
       maxRequestsPerMinute: 30,
+    });
+
+    this.providers.set('gemini', {
+      name: 'gemini',
+      priority: 6,
+      available: !!(process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY),
+      rateLimitReset: 0,
+      requestCount: 0,
+      maxRequestsPerMinute: 15,
     });
 
     this.providers.set('huggingface', {

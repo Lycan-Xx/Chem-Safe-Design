@@ -34,3 +34,8 @@ externalPort = 3000
 [[ports]]
 localPort = 23522
 externalPort = 80
+
+[userenv]
+
+[userenv.shared]
+DEEPSEEK_API_KEY = "sk-f28c8ce090614db0a6963b2772693055"
