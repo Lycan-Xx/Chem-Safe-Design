@@ -36,6 +36,7 @@ npm-debug.log
 yarn-error.log
 testem.log
 /typings
+PROJECT_ANALYSIS.md
 
 # System Files
 .DS_Store
@@ -47,6 +48,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+replit.md
 
 
 .env
