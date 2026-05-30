@@ -37,6 +37,7 @@ yarn-error.log
 testem.log
 /typings
 PROJECT_ANALYSIS.md
+replit.md
 
 # System Files
 .DS_Store
