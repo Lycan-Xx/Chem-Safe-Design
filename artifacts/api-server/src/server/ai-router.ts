@@ -18,6 +18,8 @@
  * - Mock is returned when all real providers fail
  */
 
+import { logger } from "../lib/logger.js";
+
 interface ProviderConfig {
   name: string;
   priority: number;
@@ -397,9 +399,12 @@ class AIRouter {
       if (!providerConfig.available) continue;
 
       try {
+        logger.info({ provider: providerConfig.name }, "Attempting AI turn via provider");
         const result = await this.makeProviderRequest(providerConfig.name, prompt);
+        logger.info({ provider: providerConfig.name, resultLength: result.length }, "Received AI turn response");
         return result;
       } catch (err: unknown) {
+        logger.error({ provider: providerConfig.name, err }, "AI turn provider failed");
         const isRateLimit = err instanceof Error && 'isRateLimit' in err;
         this.markProviderFailed(providerConfig.name, isRateLimit);
       }
@@ -478,10 +483,14 @@ class AIRouter {
     };
 
     try {
+      logger.info({ mimeType }, "Sending image to Gemini Flash Vision API...");
       const raw = await this.makeGeminiRequest('gemini-flash', visionPrompt, { base64, mimeType });
+      logger.info({ raw }, "Raw response received from Gemini Flash Vision");
       const parsed = this.parseAIResponse(raw) as typeof fallback;
+      logger.info({ parsed }, "Parsed Gemini Flash Vision result");
       return parsed;
-    } catch {
+    } catch (err) {
+      logger.error({ err }, "Error during Gemini Flash Vision API request");
       return fallback;
     }
   }
